@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/db');
 const userRoutes = require('./routes/userRoutes');
+const websiteRoutes = require('./routes/websiteRoutes');
 const errorHandler = require('./middleware/errorHandler');
 const app = express();
 
@@ -10,13 +11,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-
 app.get('/testing', (req, res) => {
   res.json({ status: 'ok' });
 });
 
 // API routes
 app.use('/api/users', userRoutes);
+app.use("/api/websites",websiteRoutes );
+
 app.use(errorHandler);
 
 const PORT = process.env.PORT;
