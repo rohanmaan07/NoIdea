@@ -1,4 +1,5 @@
 const Website = require("../models/website.js");
+const { interpretWebsite } = require("../services/websiteInterpreter.js");
 const { evaluateWebsite } = require("../services/websiteServices.js");
 
 exports.analyzeWebsite = async (req, res, next) => {
@@ -12,16 +13,37 @@ exports.analyzeWebsite = async (req, res, next) => {
     }
 
     let evaluation = await evaluateWebsite(url);
+    let interpretation = interpretWebsite(evaluation);
     let website = await Website.findOneAndUpdate(
       { url: evaluation.url },
       {
-        $set: { ...evaluation, lastCheckedAt: new Date() },
+        $set: {
+          ...evaluation,
+          state: interpretation.state,
+          reasons: interpretation.reasons,
+          confidence: interpretation.confidence,
+          lastCheckedAt: new Date(),
+        },
         $unset: { signals: "", hasWebsite: "" },
       },
       { upsert: true, new: true },
     );
 
-    res.json({ success: true, data: website });
+    let responseData = {
+      url: website.url,
+      state: website.state,
+      reasons: website.reasons,
+      confidence: website.confidence,
+      signals: {
+        reachability: website.reachability,
+        ssl: website.ssl,
+        mobileFriendly: website.mobileFriendly,
+        speed: website.speed,
+      },
+      lastCheckedAt: website.lastCheckedAt,
+    };
+
+    res.json({ success: true, data: responseData });
   } catch (error) {
     next(error);
   }
