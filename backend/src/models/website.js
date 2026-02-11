@@ -27,8 +27,21 @@ const WebsiteSchema = new mongoose.Schema({
   },
   state: {
     type: String,
-    enum: ["unknown", "no_website", "critical", "needs_attention", "acceptable", "good"],
+    enum: [
+      "unknown",
+      "no_website",
+      "critical",
+      "needs_attention",
+      "acceptable",
+      "good",
+    ],
     default: "unknown",
+  },
+  reasons: [String],
+
+  confidence: {
+    type: String,
+    enum: ["low", "medium", "high"],
   },
 
   lastCheckedAt: Date,
