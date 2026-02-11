@@ -102,20 +102,20 @@ function checkSpeed(responseTimeMs) {
 
   return { classification };
 }
-function decideOverallState(data) {
-  if (!data.websiteExists) return "no_website";
-  if (!data.reachability.isReachable) return "critical";
+// function decideOverallState(data) {
+//   if (!data.websiteExists) return "no_website";
+//   if (!data.reachability.isReachable) return "critical";
 
-  let issues = 0;
+//   let issues = 0;
 
-  if (!data.ssl.hasSSL) issues++;
-  if (!data.mobileFriendly.isMobileFriendly) issues++;
-  if (data.speed.classification === "slow") issues++;
+//   if (!data.ssl.hasSSL) issues++;
+//   if (!data.mobileFriendly.isMobileFriendly) issues++;
+//   if (data.speed.classification === "slow") issues++;
 
-  if (issues === 0) return "good";
-  if (issues === 1) return "acceptable";
-  return "needs_attention";
-}
+//   if (issues === 0) return "good";
+//   if (issues === 1) return "acceptable";
+//   return "needs_attention";
+// }
 
 async function evaluateWebsite(inputUrl) {
   let url = inputUrl.trim();
@@ -167,13 +167,14 @@ async function evaluateWebsite(inputUrl) {
 
   let mobileFriendly = checkMobileFriendly($);
   let speed = checkSpeed(reach.responseTimeMs);
-  let state = decideOverallState({
-    websiteExists: true,
-    reachability: reach,
-    ssl,
-    mobileFriendly,
-    speed,
-  });
+  
+  // let state = decideOverallState({
+  //   websiteExists: true,
+  //   reachability: reach,
+  //   ssl,
+  //   mobileFriendly,
+  //   speed,
+  // });
 
   return {
     url,
@@ -188,7 +189,7 @@ async function evaluateWebsite(inputUrl) {
     ssl,
     mobileFriendly,
     speed,
-    state,
+    // state,
   };
 }
 
