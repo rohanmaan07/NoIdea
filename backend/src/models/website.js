@@ -39,12 +39,23 @@ const WebsiteSchema = new mongoose.Schema({
   },
   reasons: [String],
 
+  technicalFindings: [String],
+
+  impactSummary: [String],
+
+  riskLevel: {
+    type: String,
+    enum: ["low", "medium", "high"],
+    default: "low",
+  },
+
+
   confidence: {
     type: String,
     enum: ["low", "medium", "high"],
   },
 
-  lastCheckedAt: Date,
+  analyzedAt: { type: Date, default: Date.now },
   createdAt: { type: Date, default: Date.now },
 });
 
