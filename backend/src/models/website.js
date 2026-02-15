@@ -1,7 +1,33 @@
 const mongoose = require("mongoose");
+
 const WebsiteSchema = new mongoose.Schema({
   url: { type: String, required: true, unique: true },
   websiteExists: { type: Boolean, default: false },
+  rawSignals: {
+    reachability: {
+      isReachable: Boolean,
+      httpStatus: Number,
+      statusText: String,
+      dnsResolved: Boolean,
+      responseTimeMs: Number,
+    },
+    ssl: {
+      hasSSL: Boolean,
+    },
+    viewport: {
+      hasViewportMeta: Boolean,
+      viewportContent: String,
+    },
+    speed: {
+      classification: String,
+    },
+    mobileFriendly: {
+      hasViewportMeta: Boolean,
+      isMobileFriendly: Boolean,
+      viewportContent: String,
+    }
+  },
+
   reachability: {
     isReachable: Boolean,
     httpStatus: Number,
@@ -25,6 +51,17 @@ const WebsiteSchema = new mongoose.Schema({
       default: "unknown",
     },
   },
+
+  technicalFindings: [{
+    type: { type: String, required: true },
+    severity: { type: String, enum: ["critical", "major", "minor"], required: true },
+    message: { type: String, required: true },
+    code: { type: String }
+  }],
+
+
+  impactSummary: [String],
+
   state: {
     type: String,
     enum: [
@@ -37,23 +74,18 @@ const WebsiteSchema = new mongoose.Schema({
     ],
     default: "unknown",
   },
-  reasons: [String],
-
-  technicalFindings: [String],
-
-  impactSummary: [String],
-
   riskLevel: {
     type: String,
     enum: ["low", "medium", "high"],
     default: "low",
   },
-
-
   confidence: {
     type: String,
     enum: ["low", "medium", "high"],
   },
+
+  analysisCount: { type: Number, default: 0 },
+
 
   analyzedAt: { type: Date, default: Date.now },
   createdAt: { type: Date, default: Date.now },
