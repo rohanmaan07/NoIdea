@@ -6,6 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
+    "worker": "node workers/website.worker.js",
+    "worker:dev": "nodemon workers/website.worker.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
