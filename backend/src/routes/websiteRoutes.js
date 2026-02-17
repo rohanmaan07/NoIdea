@@ -3,11 +3,12 @@ const rateLimit = require("express-rate-limit");
 const router = express.Router();
 const {
     analyzeWebsite,
+    getJobStatus,
     getWebsite,
     getAllWebsites,
 } = require("../controllers/websiteController");
 const analyzeRateLimiter = rateLimit({
-    windowMs: 1 * 60 * 1000, 
+    windowMs: 1 * 60 * 1000,
     max: 10,
     message: {
         success: false,
@@ -18,6 +19,7 @@ const analyzeRateLimiter = rateLimit({
 });
 
 router.post("/analyze", analyzeRateLimiter, analyzeWebsite);
+router.get("/analyze/:jobId", getJobStatus); 
 router.get("/", getAllWebsites);
 router.get("/:id", getWebsite);
 
