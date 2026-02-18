@@ -4,6 +4,7 @@ const cors = require('cors');
 const connectDB = require('./config/db');
 const userRoutes = require('./routes/userRoutes');
 const websiteRoutes = require('./routes/websiteRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 const errorHandler = require('./middleware/errorHandler');
 const app = express();
 
@@ -17,7 +18,8 @@ app.get('/testing', (req, res) => {
 
 // API routes
 app.use('/api/users', userRoutes);
-app.use("/api/websites",websiteRoutes );
+app.use("/api/websites", websiteRoutes);
+app.use("/api/admin", adminRoutes);
 
 app.use(errorHandler);
 
