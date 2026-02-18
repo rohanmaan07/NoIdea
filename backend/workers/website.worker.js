@@ -3,6 +3,7 @@ const { Worker } = require("bullmq");
 const { getRedisConnection } = require("../src/config/redis.js");
 const connectDB = require("../src/config/db.js");
 const Website = require("../src/models/website.js");
+const AnalysisStats = require("../src/models/AnalysisStats.js");
 const { collectWebsiteSignals } = require("../src/services/websiteSignalService.js");
 const { interpretWebsite } = require("../src/services/websiteInterpreter.js");
 const { generateImpact } = require("../src/services/websiteImpactService.js");
@@ -35,7 +36,7 @@ const processAnalysisJob = async (job) => {
 
                 console.log(` Job ${job.id} completed (from cache) in ${analysisTimeMs}ms`);
 
-               
+
                 return {
                     url: existingWebsite.url,
                     state: existingWebsite.state,
@@ -51,15 +52,15 @@ const processAnalysisJob = async (job) => {
             }
         }
 
-        
+
         console.log(` Collecting signals for ${url}...`);
         const signals = await collectWebsiteSignals(url);
 
-      
+
         console.log(` Interpreting signals for ${url}...`);
         const interpretation = interpretWebsite(signals);
 
-        
+
         console.log(` Generating impact summary for ${url}...`);
         const impactSummary = generateImpact(interpretation.technicalFindings);
 
@@ -70,7 +71,7 @@ const processAnalysisJob = async (job) => {
             code: f.code || null,
         }));
 
-     
+
         let website;
         const stateChanged =
             !existingWebsite || existingWebsite.state !== interpretation.state;
@@ -100,7 +101,7 @@ const processAnalysisJob = async (job) => {
                         riskLevel: interpretation.riskLevel,
                         confidence: interpretation.confidence,
                         analyzedAt: new Date(),
-                        lastJobId: job.id, 
+                        lastJobId: job.id,
                     },
                     $inc: { analysisCount: 1 },
                     $unset: { reasons: "" },
@@ -122,13 +123,13 @@ const processAnalysisJob = async (job) => {
             );
         }
 
-      
+
         const analysisTimeMs = Date.now() - startTime;
         logger.analyzeComplete(url, website.state, analysisTimeMs, false);
 
         console.log(` Job ${job.id} completed successfully in ${analysisTimeMs}ms`);
 
-     
+
         return {
             url: website.url,
             state: website.state,
@@ -157,20 +158,56 @@ const websiteAnalysisWorker = new Worker(
     processAnalysisJob,
     {
         connection: getRedisConnection(),
-        concurrency: 5, 
+        concurrency: 5,
         limiter: {
-            max: 10, 
-            duration: 1000, 
+            max: 10,
+            duration: 1000,
         },
     }
 );
 
-websiteAnalysisWorker.on("completed", (job, result) => {
+websiteAnalysisWorker.on("completed", async (job, result) => {
     console.log(` Job ${job.id} completed successfully`);
     console.log(`   URL: ${result.url}`);
     console.log(`   State: ${result.state}`);
     console.log(`   Risk Level: ${result.riskLevel}`);
     console.log(`   Time: ${result.analysisTimeMs}ms`);
+
+    // Cache hits ko stats mein count nahi karte — real analysis hi count hogi
+    if (result.fromCache) {
+        console.log(`   Skipping stats update (served from cache)`);
+        return;
+    }
+
+    try {
+        // Pehle current stats fetch karo
+        const currentStats = await AnalysisStats.findOne();
+        const oldAvg = currentStats ? currentStats.avgAnalysisTime : 0;
+        const oldSuccessful = currentStats ? currentStats.successfulJobs : 0;
+
+        // Rolling average formula: newAvg = ((oldAvg * (n-1)) + currentTime) / n
+        const n = oldSuccessful + 1; // n = new successfulJobs count
+        const newAvg = ((oldAvg * (n - 1)) + result.analysisTimeMs) / n;
+
+        await AnalysisStats.findOneAndUpdate(
+            {},
+            {
+                $inc: {
+                    totalJobs: 1,
+                    successfulJobs: 1,
+                },
+                $set: {
+                    avgAnalysisTime: Math.round(newAvg),
+                    lastUpdated: new Date(),
+                },
+            },
+            { upsert: true, new: true }
+        );
+
+        console.log(`   Stats updated — avgTime: ${Math.round(newAvg)}ms, total successful: ${n}`);
+    } catch (statsError) {
+        console.error(`   Failed to update AnalysisStats:`, statsError.message);
+    }
 });
 
 websiteAnalysisWorker.on("failed", async (job, err) => {
@@ -193,6 +230,30 @@ websiteAnalysisWorker.on("failed", async (job, err) => {
         console.log(` Failure info stored in DB for ${url}`);
     } catch (dbError) {
         console.error(` Failed to store failure info in DB:`, dbError.message);
+    }
+
+    // AnalysisStats sirf FINAL retry ke baad update karo
+    // (BullMQ failed event har retry pe fire hota hai)
+    const isFinalAttempt = job.attemptsMade >= job.opts.attempts;
+    if (isFinalAttempt) {
+        try {
+            await AnalysisStats.findOneAndUpdate(
+                {},
+                {
+                    $inc: {
+                        totalJobs: 1,
+                        failedJobs: 1,
+                    },
+                    $set: {
+                        lastUpdated: new Date(),
+                    },
+                },
+                { upsert: true, new: true }
+            );
+            console.log(` AnalysisStats updated — failedJobs incremented (final attempt)`);
+        } catch (statsError) {
+            console.error(` Failed to update AnalysisStats on failure:`, statsError.message);
+        }
     }
 });
 
