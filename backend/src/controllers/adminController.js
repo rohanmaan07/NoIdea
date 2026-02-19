@@ -1,5 +1,8 @@
 const { websiteAnalysisQueue } = require("../queues/websiteAnalysisQueue.js");
 const AnalysisStats = require("../models/AnalysisStats.js");
+const mongoose = require("mongoose");
+const { getRedisConnection } = require("../config/redis.js");
+
 
 // GET /admin/queue-stats
 // Real-time BullMQ queue visibility
@@ -57,6 +60,33 @@ exports.getAnalysisStats = async (req, res, next) => {
     });
   } catch (error) {
     console.error("Error fetching analysis stats:", error.message);
+    next(error);
+  }
+};
+
+
+// GET /admin/health
+// System health check
+exports.getSystemHealth = async (req, res, next) => {
+  try {
+    const redis = getRedisConnection();
+    const redisStatus = redis.status === "ready" ? "connected" : "disconnected";
+
+    const mongoStatus = mongoose.connection.readyState === 1 ? "connected" : "disconnected";
+
+    const workerState = await redis.get("worker:node:health");
+    const workerHealth = workerState === "true" ? "running" : "stopped";
+
+    const queuePaused = await websiteAnalysisQueue.isPaused();
+
+    return res.json({
+      redis: redisStatus,
+      mongo: mongoStatus,
+      worker: workerHealth, // "running" or "stopped"
+      queuePaused,
+    });
+  } catch (error) {
+    console.error("Error fetching system health:", error.message);
     next(error);
   }
 };

@@ -87,6 +87,7 @@ const WebsiteSchema = new mongoose.Schema({
   analysisCount: { type: Number, default: 0 },
 
   lastJobId: { type: String },
+  permanentFailure: { type: Boolean, default: false },
   lastFailureReason: { type: String },
   lastFailureAt: { type: Date },
 

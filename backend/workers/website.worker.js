@@ -9,10 +9,13 @@ const { interpretWebsite } = require("../src/services/websiteInterpreter.js");
 const { generateImpact } = require("../src/services/websiteImpactService.js");
 const logger = require("../src/utils/logger.js");
 
-console.log("🔧 Starting Website Analysis Worker...");
+console.log(" Starting Website Analysis Worker...");
 
 // Database connection
 connectDB();
+const redis = getRedisConnection();
+redis.set("worker:node:health", "true").catch(console.error);
+
 
 const processAnalysisJob = async (job) => {
     const startTime = Date.now();
@@ -24,6 +27,23 @@ const processAnalysisJob = async (job) => {
 
         // Step 1: Check for existing website and cooldown
         const existingWebsite = await Website.findOne({ url });
+
+        // Idempotency: If this job already ran successfully, skip re-processing
+        if (existingWebsite && existingWebsite.lastJobId === job.id) {
+            console.log(`⚠️ Job ${job.id} already processed. Skipping to avoid duplicates.`);
+            return {
+                url: existingWebsite.url,
+                state: existingWebsite.state,
+                riskLevel: existingWebsite.riskLevel,
+                technicalFindings: existingWebsite.technicalFindings,
+                impactSummary: existingWebsite.impactSummary,
+                confidence: existingWebsite.confidence,
+                analyzedAt: existingWebsite.analyzedAt,
+                analysisCount: existingWebsite.analysisCount,
+                fromCache: true, // Treat as cache hit to avoid stats increment
+                analysisTimeMs: 0,
+            };
+        }
 
         if (existingWebsite && existingWebsite.analyzedAt) {
             const now = new Date();
@@ -222,10 +242,12 @@ websiteAnalysisWorker.on("failed", async (job, err) => {
                 $set: {
                     lastFailureReason: err.message || "Unknown error",
                     lastFailureAt: new Date(),
+                    permanentFailure: job.attemptsMade >= job.opts.attempts, // Mark permanent only on last try
                 }
             },
             { upsert: false } // Don't create if doesn't exist
         );
+
 
         console.log(` Failure info stored in DB for ${url}`);
     } catch (dbError) {
@@ -259,7 +281,9 @@ websiteAnalysisWorker.on("failed", async (job, err) => {
 
 websiteAnalysisWorker.on("error", (err) => {
     console.error(" Worker error:", err);
+    redis.set("worker:node:health", "false").catch(console.error);
 });
+
 
 websiteAnalysisWorker.on("active", (job) => {
     console.log(` Job ${job.id} is now active`);
@@ -268,15 +292,19 @@ websiteAnalysisWorker.on("active", (job) => {
 // Graceful shutdown
 process.on("SIGTERM", async () => {
     console.log("\n⏸  SIGTERM received, closing worker gracefully...");
+    await redis.set("worker:node:health", "false");
     await websiteAnalysisWorker.close();
     process.exit(0);
 });
 
+
 process.on("SIGINT", async () => {
     console.log("\n⏸  SIGINT received, closing worker gracefully...");
+    await redis.set("worker:node:health", "false");
     await websiteAnalysisWorker.close();
     process.exit(0);
 });
+
 
 console.log(" Website Analysis Worker is running and listening for jobs...");
 console.log(" Queue: website-analysis");
